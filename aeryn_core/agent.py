@@ -1,70 +1,42 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
-import requests
+from aeryn_core.config import AerynConfig
+from aeryn_core.llm import GeminiClient, GroqClient
+from aeryn_core.memory import LocalMemory, TaskState
 
 
-class GeminiClient:
-    def __init__(self, api_key: str | None):
-        self.api_key = api_key
+class AerynAgent:
+    def __init__(self, config: AerynConfig, memory: LocalMemory | None = None):
+        self.config = config
+        self.memory = memory or LocalMemory(config.db_path)
+        self.gemini = GeminiClient(config.gemini_api_key)
+        self.groq = GroqClient(config.groq_api_key)
 
-    def ask(self, prompt: str, system_prompt: str | None = None) -> str:
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY is missing")
+    def create_task(self, goal: str, context: str | None = None) -> TaskState:
+        task_id = str(uuid.uuid4())
+        task = TaskState(
+            task_id=task_id,
+            status="queued",
+            current_step="ready",
+            timeout_seconds=self.config.timeout_seconds,
+            metadata={"goal": goal, "context": context or ""},
+        )
+        task.mark_started()
+        self.memory.upsert_task(task)
+        self.memory.log_event(task_id, "task_created", {"goal": goal, "context": context or ""})
+        return task
 
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "system_instruction": {"parts": [{"text": system_prompt or "You are Aeryn, a helpful Android voice AI agent."}]},
-        }
+    def plan_task(self, goal: str, context: str | None = None) -> dict[str, Any]:
+        return self.groq.plan(goal=goal, context=context)
 
-        headers = {
-            "Content-Type": "application/json",
-            "x-goog-api-key": self.api_key,
-        }
-
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
-        response.raise_for_status()
-        data = response.json()
-
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError):
-            raise RuntimeError(f"Unexpected Gemini response: {data}")
-
-
-class GroqClient:
-    def __init__(self, api_key: str | None):
-        self.api_key = api_key
-
-    def plan(self, goal: str, context: str | None = None) -> dict[str, Any]:
-        if not self.api_key:
-            raise ValueError("GROQ_API_KEY is missing")
-
-        instructions = {
-            "model": "llama-3.1-70b-versatile",
-            "messages": [
-                {"role": "system", "content": "You are Aeryn's task planner. Return JSON with 'steps' and 'risks'."},
-                {"role": "user", "content": f"Goal: {goal}\n\nContext:\n{context or 'None'}"},
-            ],
-            "temperature": 0.2,
-        }
-
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=instructions, timeout=60)
-        response.raise_for_status()
-        data = response.json()
-
-        try:
-            content = data["choices"][0]["message"]["content"]
-            return {"raw": content}
-        except (KeyError, IndexError, TypeError):
-            raise RuntimeError(f"Unexpected Groq response: {data}")
+    def respond(self, user_input: str) -> str:
+        return self.gemini.ask(
+            prompt=user_input,
+            system_prompt="You are Aeryn, a universal Android voice AI assistant. Keep answers concise, practical, and permission-aware.",
+        )
 
 
-__all__ = ["GeminiClient", "GroqClient"]
+__all__ = ["AerynAgent"]

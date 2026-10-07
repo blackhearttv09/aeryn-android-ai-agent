@@ -1,40 +1,26 @@
 from __future__ import annotations
 
-from typing import Any
-
 from aeryn_core.agent import AerynAgent
 from aeryn_core.config import AerynConfig
+from aeryn_core.memory import LocalMemory
+from aeryn_core.runtime import ExecutionLoop
 
 
-class ExecutionLoop:
-    def __init__(self, agent: AerynAgent):
-        self.agent = agent
+def main() -> None:
+    config = AerynConfig.from_env()
+    config.ensure_directories()
 
-    def run(self, user_goal: str, context: str | None = None) -> dict[str, Any]:
-        task = self.agent.create_task(user_goal, context)
-        try:
-            raw_plan = self.agent.plan_task(user_goal, context)
-            task.current_step = "planned"
-            self.agent.memory.upsert_task(task)
+    memory = LocalMemory(config.db_path)
+    agent = AerynAgent(config=config, memory=memory)
+    loop = ExecutionLoop(agent)
 
-            result = {
-                "task_id": task.task_id,
-                "status": "success",
-                "plan": raw_plan,
-                "message": f"Task accepted and planned: {user_goal}",
-            }
+    sample_goal = "Open the app store and identify a task-management app suitable for Android."
+    result = loop.run(sample_goal, context="User is on Android and expects safe, generic device interaction.")
+    print(result)
 
-            task.mark_completed()
-            self.agent.memory.upsert_task(task)
-            return result
-        except Exception as exc:
-            task.mark_failed(str(exc))
-            self.agent.memory.upsert_task(task)
-            return {
-                "task_id": task.task_id,
-                "status": "failed",
-                "error": str(exc),
-            }
+    response = agent.respond("Hello Aeryn, help me operate this Android device safely.")
+    print(response)
 
 
-__all__ = ["ExecutionLoop"]
+if __name__ == "__main__":
+    main()

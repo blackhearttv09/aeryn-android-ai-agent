@@ -1,38 +1,40 @@
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
-from aeryn_core.config import AerynConfig
-from aeryn_core.llm import GeminiClient, GroqClient
-from aeryn_core.memory import LocalMemory, TaskState
+from aeryn_core.agent import AerynAgent
 
 
-class AerynAgent:
-    def __init__(self, config: AerynConfig, memory: LocalMemory | None = None):
-        self.config = config
-        self.memory = memory or LocalMemory(config.db_path)
-        self.gemini = GeminiClient(config.gemini_api_key)
-        self.groq = GroqClient(config.groq_api_key)
+class ExecutionLoop:
+    def __init__(self, agent: AerynAgent):
+        self.agent = agent
 
-    def create_task(self, goal: str, context: str | None = None) -> TaskState:
-        task_id = str(uuid.uuid4())
-        task = TaskState(task_id=task_id, status="queued", current_step="ready", timeout_seconds=self.config.timeout_seconds)
-        task.metadata = {"goal": goal, "context": context or ""}
-        task.mark_started()
-        self.memory.upsert_task(task)
-        self.memory.log_event(task_id, "task_created", {"goal": goal, "context": context or ""})
-        return task
+    def run(self, user_goal: str, context: str | None = None) -> dict[str, Any]:
+        task = self.agent.create_task(user_goal, context)
+        try:
+            plan = self.agent.plan_task(user_goal, context)
+            task.current_step = "planned"
+            task.metadata["plan"] = plan
+            self.agent.memory.upsert_task(task)
 
-    def plan_task(self, goal: str, context: str | None = None) -> dict[str, Any]:
-        plan = self.groq.plan(goal=goal, context=context)
-        return plan
+            result = {
+                "task_id": task.task_id,
+                "status": "success",
+                "plan": plan,
+                "message": f"Task accepted and planned: {user_goal}",
+            }
 
-    def respond(self, user_input: str) -> str:
-        return self.gemini.ask(
-            prompt=user_input,
-            system_prompt="You are Aeryn, a universal Android voice AI assistant. Keep answers concise, practical, and permission-aware.",
-        )
+            task.mark_completed()
+            self.agent.memory.upsert_task(task)
+            return result
+        except Exception as exc:
+            task.mark_failed(str(exc))
+            self.agent.memory.upsert_task(task)
+            return {
+                "task_id": task.task_id,
+                "status": "failed",
+                "error": str(exc),
+            }
 
 
-__all__ = ["AerynAgent"]
+__all__ = ["ExecutionLoop"]

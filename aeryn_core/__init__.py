@@ -1,15 +1,6 @@
-package com.aeryn.agent
+from aeryn_core.agent import AerynAgent
+from aeryn_core.config import AerynConfig
+from aeryn_core.memory import LocalMemory
+from aeryn_core.runtime import ExecutionLoop
 
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-
-class AerynBootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            val serviceIntent = Intent(context, AerynForegroundService::class.java)
-            context.startForegroundService(serviceIntent)
-        }
-    }
-}
-
+__all__ = ["AerynAgent", "AerynConfig", "LocalMemory", "ExecutionLoop"]
