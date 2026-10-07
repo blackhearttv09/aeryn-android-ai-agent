@@ -17,6 +17,7 @@ class AerynConfig:
     timeout_seconds: int = 120
     max_retries: int = 3
     android_package_name: str = "com.aeryn.agent"
+    offline_mode: bool = False
 
     @classmethod
     def from_env(cls) -> "AerynConfig":
@@ -24,6 +25,7 @@ class AerynConfig:
 
         data_dir = os.getenv("AERYN_DATA_DIR", "./data")
         db_path = os.getenv("AERYN_DB_PATH", os.path.join(data_dir, "aeryn.db"))
+        offline_mode = os.getenv("AERYN_OFFLINE_MODE", "false").lower() in ("true", "1", "yes")
 
         return cls(
             gemini_api_key=os.getenv("GEMINI_API_KEY"),
@@ -34,6 +36,7 @@ class AerynConfig:
             timeout_seconds=int(os.getenv("AERYN_TIMEOUT_SECONDS", "120")),
             max_retries=int(os.getenv("AERYN_MAX_RETRIES", "3")),
             android_package_name=os.getenv("ANDROID_PACKAGE_NAME", "com.aeryn.agent"),
+            offline_mode=offline_mode,
         )
 
     def ensure_directories(self) -> None:

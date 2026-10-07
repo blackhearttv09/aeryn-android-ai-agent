@@ -20,7 +20,8 @@ def main() -> None:
 
     print("\n=== Aeryn Agent Started ===")
     print(f"Version: 0.1.0")
-    print(f"Mode: {('Offline Fallback' if not config.gemini_api_key or not config.groq_api_key else 'Online')}")
+    mode_str = "Offline Mode" if config.offline_mode else "Online Mode"
+    print(f"Mode: {mode_str}")
     print()
 
     sample_goal = "Open the app store and identify a task-management app suitable for Android."
