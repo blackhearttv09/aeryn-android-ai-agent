@@ -1,78 +1,44 @@
-# Aeryn — Universal Autonomous Android Voice AI Agent
+from __future__ import annotations
 
-Aeryn is an Android-first autonomous agent that can operate a device using a valid, user-granted permission model. It is designed to be a generic screen-control AI system rather than a hardcoded app automation bot.
+from aeryn_core.agent import AerynAgent
+from aeryn_core.config import AerynConfig
+from aeryn_core.memory import LocalMemory
+from aeryn_core.runtime import ExecutionLoop
+from aeryn_core.safety import RiskGuard
+from aeryn_core.task_engine import TaskEngine
 
-## Goals
 
-- Voice-first interaction using Gemini for natural conversation.
-- Fast planning and task decomposition using Groq.
-- Real-time screen observation and UI understanding.
-- Virtual mouse / pointer control for generic device interaction.
-- Secure local memory using SQLite.
-- Recovery-aware execution loop to handle failures and retries.
-- Reboot-safe initialization using Termux:Boot and Android foreground service.
-- Confirmation gates for sensitive actions.
+def main() -> None:
+    config = AerynConfig.from_env()
+    config.ensure_directories()
 
-## Core architecture
+    memory = LocalMemory(config.db_path)
+    agent = AerynAgent(config=config, memory=memory)
+    loop = ExecutionLoop(agent)
+    risk_guard = RiskGuard(require_confirmation=True)
+    task_engine = TaskEngine(config=config, memory=memory)
 
-- Termux + Python Aeryn Core
-- Native Android companion service
-- Accessibility Service for UI introspection and controls
-- MediaProjection for generic screen capture / inspection
-- Virtual Mouse Engine for pointer and input actions
-- Gemini + Groq orchestration
-- SQLite local memory
+    sample_goal = "Open the app store and identify a task-management app suitable for Android."
+    plan = loop.run(sample_goal, context="User is on Android and expects safe, generic device interaction.")
+    print(plan)
 
-## Execution loop
+    risky_check = risk_guard.evaluate("send a WhatsApp message to my boss", "User expects a normal conversation")
+    print({
+        "risky": risky_check.risky,
+        "category": risky_check.category,
+        "requires_confirmation": risky_check.requires_confirmation,
+    })
 
-SEE → UNDERSTAND → PLAN → CONTROL → VERIFY → RECOVER
+    execution = task_engine.create_execution(sample_goal, "safe generic mobile workflow")
+    print({
+        "task_id": execution.task_id,
+        "status": execution.status,
+        "steps": [step.name for step in execution.steps],
+    })
 
-## Security model
+    response = agent.respond("Hello Aeryn, help me operate this Android device safely.")
+    print(response)
 
-- API keys stored in environment variables / secure config only.
-- No hardcoded secrets.
-- Sensitive operations require explicit confirmation.
-- No attempt to bypass Android sandbox or user permission boundaries.
-- All control is limited to user-granted permissions and visible system access.
 
-## Repository structure
-
-- `aeryn_core/` — Python runtime, planning, agent orchestration, memory, config
-- `android/` — Android app scaffold for companion service and accessibility integration
-- `scripts/` — Termux boot and startup scripts
-- `docs/` — architecture and implementation notes
-
-## Quick start
-
-1. Copy `.env.example` to `.env` and fill in API keys.
-2. Install dependencies:
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-3. Run the agent core:
-
-   ```bash
-   python main.py
-   ```
-
-## Sensitive actions policy
-
-Aeryn must confirm before performing irreversible or risky actions, including:
-
-- payment or financial action
-- direct message or call sending
-- account/security changes
-- destructive file operations
-- app uninstall or system-level modification
-
-## Production direction
-
-This repo is structured as a modular foundation for later conversion into a full Android APK or packaged app. It is intentionally split into clear domains so each layer can evolve independently.
-
-## License
-
-MIT
+if __name__ == "__main__":
+    main()
