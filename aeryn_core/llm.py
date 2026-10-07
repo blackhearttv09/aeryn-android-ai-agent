@@ -25,8 +25,8 @@ class GeminiClient:
                 "x-goog-api-key": self.api_key,
             }
 
-            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
 
@@ -56,7 +56,7 @@ class GroqClient:
 
         try:
             instructions = {
-                "model": "llama-3.1-70b-versatile",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [
                     {"role": "system", "content": "You are Aeryn's task planner. Return JSON with 'steps' and 'risks'."},
                     {"role": "user", "content": f"Goal: {goal}\n\nContext:\n{context or 'None'}"},
@@ -69,7 +69,7 @@ class GroqClient:
                 "Content-Type": "application/json",
             }
 
-            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=instructions, timeout=10)
+            response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=instructions, timeout=30)
             response.raise_for_status()
             data = response.json()
 
